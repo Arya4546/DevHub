@@ -160,7 +160,7 @@ export default function ChatBox({ onBack }) {
       </div>
 
       {/* Fixed Input */}
-      <div className="sticky bottom-0 bg-[#111] border-t border-gray-800 p-4">
+      <div className="sticky bottom-10 bg-[#111] border-t border-gray-800 p-4">
         <form onSubmit={sendMessage} className="flex gap-2">
           <input
             type="text"
