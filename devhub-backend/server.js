@@ -24,7 +24,7 @@ const app = express();
 app.use(express.json());
 
 app.use(cors({
-  origin: "*",
+  origin: "https://dev-hub-blush.vercel.app",
   credentials: true, // allow cookies or auth headers
 }))
 
@@ -43,7 +43,7 @@ const server = createServer(app);
 
 const io = new Server(server, {
   cors: {
-    origin: "*",
+    origin: "https://dev-hub-blush.vercel.app",
     methods: ["GET", "POST", "PUT", "DELETE"],
     credentials: true,
   },
