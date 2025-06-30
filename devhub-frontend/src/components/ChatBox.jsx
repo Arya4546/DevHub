@@ -1,196 +1,76 @@
-import { useState, useEffect, useRef } from "react";
-import { useDispatch, useSelector } from "react-redux";
-import { addMessage } from "../redux/slices/chatSlice";
-import axios from "axios";
-import socket from "../socket";
+import { useEffect, useState } from "react";
+import { StreamChat } from "stream-chat";
+import {
+  Channel,
+  ChannelHeader,
+  MessageList,
+  MessageInput,
+  Thread,
+} from "stream-chat-react";
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
-
-export default function ChatBox({ onBack }) {
-  const dispatch = useDispatch();
-  const { currentChat, messages } = useSelector((state) => state.chat);
-  const [message, setMessage] = useState("");
-  const fileInputRef = useRef(null);
-  const messagesEndRef = useRef(null);
-
-  const token = localStorage.getItem("devhub_token");
-  const userId = localStorage.getItem("userId");
-  const userName = localStorage.getItem("userName") || "You"; 
+export default function ChatBox({
+  selectedPairUp,
+  userId,
+  setShowChatBox,
+}) {
+  const [channel, setChannel] = useState(null);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+    if (!selectedPairUp) return;
 
-  useEffect(() => {
-    if (!currentChat) return;
+    const streamClient = StreamChat.getInstance(import.meta.env.VITE_STREAM_API_KEY);
+    const otherUserId =
+      selectedPairUp.from === userId ? selectedPairUp.to : selectedPairUp.from;
 
-    socket.emit("joinPairUp", currentChat.pairUpId);
+    const channelId = [userId, otherUserId].sort().join("-");
+    const newChannel = streamClient.channel("messaging", channelId, {
+      members: [userId, otherUserId],
+    });
 
-    const handleNewMessage = (msg) => {
-      // Only dispatch messages not sent by the current user to avoid duplicates
-      if (msg.sender !== userId) {
-        dispatch(addMessage(msg));
-      }
+    const init = async () => {
+      await newChannel.watch();
+      setChannel(newChannel);
     };
 
-    socket.on("newMessage", handleNewMessage);
+    init();
 
     return () => {
-      socket.off("newMessage", handleNewMessage);
+      if (channel) channel.stopWatching();
     };
-  }, [currentChat, userId, dispatch]);
+  }, [selectedPairUp, userId]);
 
-  const sendMessage = async (e) => {
-    e.preventDefault();
-    if (!message.trim()) return;
-
-    try {
-      const res = await axios.post(
-        `${API_BASE_URL}/api/chats/${currentChat.pairUpId}`,
-        { text: message, senderName: userName }, // Include senderName in the payload
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      dispatch(addMessage(res.data)); // Add to state immediately
-      socket.emit("sendMessage", res.data); // Notify other clients
-      setMessage("");
-    } catch (error) {
-      console.error("Error sending message:", error);
-    }
-  };
-
-  const sendFile = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    if (file.size > 10 * 1024 * 1024) {
-      alert("Max file size is 10MB");
-      return;
-    }
-
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("senderName", userName); // Include senderName in the payload
-
-    try {
-      const res = await axios.post(
-        `${API_BASE_URL}/api/chats/${currentChat.pairUpId}`,
-        formData,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "multipart/form-data",
-          },
-        }
-      );
-      dispatch(addMessage(res.data)); // Add to state immediately
-      socket.emit("sendMessage", res.data);
-    } catch (error) {
-      console.error("Error sending file:", error);
-    }
-  };
-
-  if (!currentChat) {
+  if (!selectedPairUp) {
     return (
-      <div className="flex items-center justify-center h-full text-gray-400 text-lg">
+      <div className="flex-1 flex items-center justify-center text-gray-400 bg-[#141414]">
         Select a chat to start messaging
       </div>
     );
   }
 
+  if (!channel) {
+    return (
+      <div className="flex-1 flex items-center justify-center text-gray-400 bg-[#141414]">
+        Loading chat...
+      </div>
+    );
+  }
+
   return (
-    <div className="flex flex-col h-full">
-      {/* Fixed Header */}
-      <div className="sticky top-0 z-10 flex items-center gap-4 p-4 border-b border-gray-800 bg-[#111] shadow-sm">
+    <div className={`flex-1 flex flex-col h-full bg-[#141414] ${selectedPairUp ? "block" : "hidden md:flex"}`}>
+      <div className="md:hidden p-4 border-b border-gray-700 bg-[#1e1e1e] flex justify-between items-center">
         <button
-          onClick={onBack}
-          className="md:hidden text-2xl text-gray-400 hover:text-white transition duration-200"
+          className="text-sm text-red-500"
+          onClick={() => setShowChatBox(false)}
         >
-          ←
+          ← Back
         </button>
-        <img
-          src={
-            currentChat.user.profileImageUrl
-              ? `${API_BASE_URL}${currentChat.user.profileImageUrl}`
-              : "/default-avatar.png"
-          }
-          alt={currentChat.user.name}
-          className="w-12 h-12 rounded-full object-cover border border-gray-700"
-        />
-        <div>
-          <h3 className="text-lg font-semibold text-white">{currentChat.user.name}</h3>
-          <p
-            className={`text-xs ${
-              currentChat.user.isOnline ? "text-green-500" : "text-gray-400"
-            }`}
-          >
-            {currentChat.user.isOnline ? "Online" : "Offline"}
-          </p>
-        </div>
       </div>
-
-      {/* Scrollable Messages */}
-      <div className="flex-1 overflow-y-auto p-4 bg-[#0d0d0d] space-y-3">
-        {messages.map((msg) => (
-          <div
-            key={msg._id}
-            className={`max-w-[70%] px-4 py-2 rounded-lg text-sm break-words shadow-md flex flex-col gap-1 ${
-              msg.sender === userId
-                ? "bg-red-600 ml-auto text-white"
-                : "bg-gray-800 mr-auto text-gray-200"
-            }`}
-          >
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-semibold text-gray-300">
-                {msg.sender === userId ? userName : currentChat.user.name}
-              </span>
-            </div>
-            {msg.text && <p>{msg.text}</p>}
-            {msg.fileUrl && (
-              <a
-                href={`${API_BASE_URL}${msg.fileUrl}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="underline text-blue-400 hover:text-blue-300"
-              >
-                📎 {msg.fileName || "Attachment"}
-              </a>
-            )}
-          </div>
-        ))}
-        <div ref={messagesEndRef} />
-      </div>
-
-      {/* Fixed Input */}
-      <div className="sticky bottom-10 bg-[#111] border-t border-gray-800 p-4">
-        <form onSubmit={sendMessage} className="flex gap-2">
-          <input
-            type="text"
-            placeholder="Type a message..."
-            className="flex-1 px-4 py-2 rounded-lg bg-[#1a1a1a] text-white border border-gray-700 focus:outline-none focus:ring-2 focus:ring-red-500 transition duration-200"
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-          />
-          <input
-            type="file"
-            ref={fileInputRef}
-            onChange={sendFile}
-            accept="*"
-            hidden
-          />
-          <button
-            type="button"
-            onClick={() => fileInputRef.current.click()}
-            className="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-lg transition duration-200"
-          >
-            📎
-          </button>
-          <button
-            type="submit"
-            className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg transition duration-200"
-          >
-            ➤
-          </button>
-        </form>
-      </div>
+      <Channel channel={channel}>
+        <ChannelHeader />
+        <MessageList />
+        <MessageInput />
+        <Thread />
+      </Channel>
     </div>
   );
 }
