@@ -139,7 +139,7 @@ export default function Signup() {
               <input
                 type={showPassword ? "text" : "password"}
                 name="password"
-                placeholder="Password (Min 8 Characters)"
+                placeholder="Password"
                 value={form.password}
                 onChange={handleChange}
                 className="w-full px-4 py-3 pr-12 rounded-md bg-[#1e1e1e] border border-gray-700 placeholder-gray-400"
