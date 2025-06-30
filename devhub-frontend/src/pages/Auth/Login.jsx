@@ -24,10 +24,22 @@ export default function Login() {
     setError("");
     try {
       const res = await axios.post(`${API_BASE_URL}/api/auth/login`, form);
+      console.log("Login response:", res.data);
+      if (!res.data.user || !res.data.user.id || !res.data.token) {
+        throw new Error("Invalid login response: missing user.id or token");
+      }
       localStorage.setItem("devhub_token", res.data.token);
-      navigate("/feed");
+      localStorage.setItem("userId", res.data.user.id);
+      localStorage.setItem("userName", res.data.user.name || "User");
+      console.log("Stored in localStorage:", {
+        devhub_token: res.data.token,
+        userId: res.data.user.id,
+        userName: res.data.user.name || "User",
+      });
+      navigate("/chat"); // Redirect to chat for testing
     } catch (err) {
-      setError(err.response?.data?.message || "Login failed");
+      setError(err.response?.data?.message || err.message || "Login failed");
+      console.error("Login error:", err);
     }
   };
 
