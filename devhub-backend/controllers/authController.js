@@ -13,14 +13,17 @@ const registerUser = async (req, res) => {
     }
 
     const existingUser = await User.findOne({ email });
-    if (existingUser) return res.status(400).json({ message: "Email already exists" });
+    if (existingUser) {
+      return res.status(400).json({ message: "Email already exists" });
+    }
 
     let profileImageUrl = "";
 
     if (req.file) {
       const ext = path.extname(req.file.originalname);
-      const filename = `${Date.now()}-${Math.round(Math.random() * 1E9)}${ext}`;
+      const filename = `${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`;
       const uploadPath = path.join(__dirname, "..", "uploads", filename);
+
       fs.writeFileSync(uploadPath, req.file.buffer);
       profileImageUrl = `/uploads/${filename}`;
     }
@@ -28,7 +31,7 @@ const registerUser = async (req, res) => {
     const newUser = await User.create({
       name,
       email,
-      password, // <--- plain text! Mongoose will hash it for you.
+      password, // Make sure you hash using a pre-save hook
       profileImageUrl,
       bio,
       authProvider: "email",
@@ -53,9 +56,6 @@ const registerUser = async (req, res) => {
   }
 };
 
-
-
-// Login stays the same
 const loginUser = async (req, res) => {
   const { email, password } = req.body;
 
