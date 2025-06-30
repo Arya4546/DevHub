@@ -1,6 +1,5 @@
 const User = require("../models/User");
 const PairUp = require("../models/PairUp");
-const bcrypt = require("bcryptjs");
 const fs = require("fs");
 const path = require("path");
 
@@ -11,9 +10,7 @@ exports.getProfile = async (req, res) => {
 
   const pairUpsCount = await PairUp.countDocuments({
     $and: [
-      {
-        $or: [{ from: user._id }, { to: user._id }],
-      },
+      { $or: [{ from: user._id }, { to: user._id }] },
       { status: "accepted" },
     ],
   });
@@ -39,15 +36,15 @@ exports.updateProfile = async (req, res) => {
   res.json({ message: "Profile updated", user });
 };
 
-// ✅ Upload/change profile image
 exports.uploadProfileImage = async (req, res) => {
   const user = await User.findById(req.user.id);
   if (!user) return res.status(404).json({ message: "User not found" });
 
-  if (!req.file) {
+  if (!req.file || !req.file.path) {
     return res.status(400).json({ message: "No file uploaded" });
   }
 
+  // Remove old image if exists
   if (user.profileImageUrl) {
     const oldPath = path.join(__dirname, "..", "uploads", path.basename(user.profileImageUrl));
     if (fs.existsSync(oldPath)) {
@@ -55,10 +52,14 @@ exports.uploadProfileImage = async (req, res) => {
     }
   }
 
+  // Update profileImageUrl
   user.profileImageUrl = `/uploads/${req.file.filename}`;
   await user.save();
 
-  res.json({ message: "Profile image updated", profileImageUrl: user.profileImageUrl });
+  res.json({
+    message: "Profile image updated",
+    profileImageUrl: user.profileImageUrl,
+  });
 };
 
 // ✅ Remove profile image
@@ -93,4 +94,15 @@ exports.changePassword = async (req, res) => {
   await user.save();
 
   res.json({ message: "Password changed successfully" });
+};
+
+// ✅ Get public profile by ID
+exports.getUserById = async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id).select("name profileImageUrl");
+    if (!user) return res.status(404).json({ message: "User not found" });
+    res.json(user);
+  } catch (err) {
+    res.status(500).json({ message: "Server error" });
+  }
 };
