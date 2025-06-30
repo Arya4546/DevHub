@@ -3,23 +3,95 @@
 @tailwind utilities;
 
 body {
-  @apply bg-background text-white font-inter;
+  @apply bg-black text-white font-inter;
 }
-/* ===== Custom scrollbar style for DevHub ===== */
+
+/* Scrollbar */
 ::-webkit-scrollbar {
   width: 8px;
 }
-
 ::-webkit-scrollbar-track {
   background: #1a1a1a;
 }
-
 ::-webkit-scrollbar-thumb {
-  background-color: #555;
+  background: #555;
   border-radius: 10px;
   border: 2px solid #1a1a1a;
 }
-
 ::-webkit-scrollbar-thumb:hover {
-  background-color: #777;
+  background: #777;
 }
+
+/* Stream Chat Fix */
+.str-chat {
+  background: #141414;
+}
+
+.str-chat__container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.str-chat__channel-header {
+  background: #141414;
+  border-bottom: 1px solid #333;
+  padding: 1rem;
+}
+
+.str-chat__list {
+  flex: 1;
+  overflow-y: auto;
+  background: #141414;
+  padding: 1rem;
+}
+
+.str-chat__message-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.str-chat__message-simple {
+  display: flex;
+  margin-bottom: 0.5rem;
+  max-width: 60%;
+}
+
+.str-chat__message-simple--me {
+  align-self: flex-end;
+  justify-content: flex-end;
+}
+
+.str-chat__message-simple--other {
+  align-self: flex-start;
+  justify-content: flex-start;
+}
+
+.str-chat__message-text-inner {
+  background: #1f1f1f;
+  padding: 0.75rem 1rem;
+  border-radius: 1rem;
+  color: #fff;
+  word-break: break-word;
+}
+
+.str-chat__message-simple--me .str-chat__message-text-inner {
+  background: #dc2626;
+}
+
+.str-chat__message-input {
+  background: #1e1e1e;
+  border-top: 1px solid #333;
+  padding: 1rem;
+}
+
+.str-chat__textarea {
+  background: #1e1e1e !important;
+  color: #fff !important;
+  border-radius: 9999px;
+}
+
+.str-chat__send-button {
+  filter: invert(1);
+}
+
