@@ -1,135 +1,84 @@
-// controllers/chatController.js
-const PairUp = require("../models/PairUp");
-const Message = require("../models/Message");
-const User = require("../models/User");
 
-// Get all pair-ups with last message + user info
-exports.getChats = async (req, res) => {
-  const userId = req.user.id;
 
-  const pairUps = await PairUp.find({
-    $and: [
-      { status: "accepted" },
-      { $or: [{ from: userId }, { to: userId }] },
-    ],
-  }).populate("from to");
+import streamClient from "../config/stream.js";
+import PairUp from "../models/PairUp.js";
 
-  const chats = [];
+// ✅ Return a token for the logged-in user
+export const getStreamToken = async (req, res) => {
+  try {
+    const userId = req.user._id.toString();
+    const userName = req.user.name || "User";
 
-  for (const pairUp of pairUps) {
-    const otherUser =
-      pairUp.from._id.toString() === userId
-        ? pairUp.to
-        : pairUp.from;
+    console.log(`getStreamToken: userId: ${userId}`);
 
-    const lastMessage = await Message.findOne({ pairUp: pairUp._id })
-      .sort({ createdAt: -1 })
-      .limit(1);
+    // ✅ Upsert this user to Stream first
+    await syncStreamUser(userId, userName);
 
-    chats.push({
-      pairUpId: pairUp._id,
-      user: {
-        _id: otherUser._id,
-        name: otherUser.name,
-        profileImageUrl: otherUser.profileImageUrl,
-      },
-      lastMessage: lastMessage ? lastMessage.text || "📷 Image" : "No messages yet",
-      lastMessageAt: lastMessage ? lastMessage.createdAt : pairUp.createdAt,
+    // ✅ Then generate token
+    const token = streamClient.createToken(userId);
+    console.log("getStreamToken: Token generated successfully");
+
+    res.json({ token });
+  } catch (err) {
+    console.error("getStreamToken Error:", err.message, err.stack);
+    res.status(500).json({ message: "Failed to generate Stream token" });
+  }
+};
+
+
+// ✅ Sync a user in Stream
+export const syncStreamUser = async (userId, userName) => {
+  try {
+    console.log(`syncStreamUser: Syncing user ${userId}`);
+    await streamClient.upsertUser({
+      id: userId,
+      name: userName || "User",
     });
+    console.log(`syncStreamUser: User ${userId} synced successfully`);
+  } catch (err) {
+    console.error(`syncStreamUser: Failed to sync user ${userId}:`, err.message);
+    throw err;
   }
-
-  // Sort by lastMessageAt
-  chats.sort((a, b) => b.lastMessageAt - a.lastMessageAt);
-
-  res.json(chats);
 };
 
-// Search pair-ups by name
-exports.searchChats = async (req, res) => {
-  const userId = req.user.id;
-  const { query } = req.query;
+// ✅ Get pair-ups and sync both users
+export const getPairUps = async (req, res) => {
+  try {
+    const userId = req.user._id.toString();
+    console.log(`getPairUps: Fetching pair-ups for user ${userId}`);
 
-  const pairUps = await PairUp.find({
-    $and: [
-      { status: "accepted" },
-      { $or: [{ from: userId }, { to: userId }] },
-    ],
-  }).populate("from to");
+    const pairUps = await PairUp.find({
+      $and: [
+        { $or: [{ from: userId }, { to: userId }] },
+        { status: "accepted" },
+      ],
+    }).populate("from to", "name _id");
 
-  const filtered = [];
-
-  for (const pairUp of pairUps) {
-    const otherUser =
-      pairUp.from._id.toString() === userId
-        ? pairUp.to
-        : pairUp.from;
-
-    if (otherUser.name.toLowerCase().includes(query.toLowerCase())) {
-      const lastMessage = await Message.findOne({ pairUp: pairUp._id })
-        .sort({ createdAt: -1 })
-        .limit(1);
-
-      filtered.push({
-        pairUpId: pairUp._id,
-        user: {
-          _id: otherUser._id,
-          name: otherUser.name,
-          profileImageUrl: otherUser.profileImageUrl,
-        },
-        lastMessage: lastMessage ? lastMessage.text || "📷 Image" : "No messages yet",
-        lastMessageAt: lastMessage ? lastMessage.createdAt : pairUp.createdAt,
-      });
+    const validPairUps = [];
+    for (const pairUp of pairUps) {
+      const fromId = pairUp.from._id.toString();
+      const toId = pairUp.to._id.toString();
+      try {
+        await syncStreamUser(fromId, pairUp.from.name);
+        await syncStreamUser(toId, pairUp.to.name);
+        validPairUps.push({
+          _id: pairUp._id,
+          from: fromId,
+          to: toId,
+          userName: fromId === userId ? pairUp.to.name : pairUp.from.name,
+        });
+      } catch (err) {
+        console.error(
+          `getPairUps: Skipping pair-up ${pairUp._id} due to error:`,
+          err.message
+        );
+      }
     }
+
+    console.log(`getPairUps: Returning ${validPairUps.length} valid pair-ups`);
+    res.json(validPairUps);
+  } catch (err) {
+    console.error("getPairUps Error:", err.message, err.stack);
+    res.status(500).json({ message: "Failed to fetch pair-ups" });
   }
-
-  res.json(filtered);
-};
-
-// Get messages for a pair-up
-exports.getMessages = async (req, res) => {
-  const { pairUpId } = req.params;
-  const userId = req.user.id;
-
-  const pairUp = await PairUp.findById(pairUpId);
-  if (!pairUp) return res.status(404).json({ message: "PairUp not found" });
-
-  if (
-    pairUp.status !== "accepted" ||
-    (pairUp.from.toString() !== userId && pairUp.to.toString() !== userId)
-  ) {
-    return res.status(403).json({ message: "Not authorized" });
-  }
-
-  const messages = await Message.find({ pairUp: pairUpId }).sort("createdAt");
-
-  res.json(messages);
-};
-
-// Send message
-exports.sendMessage = async (req, res) => {
-  const { pairUpId } = req.params;
-  const { text } = req.body;
-  const userId = req.user.id;
-
-  const pairUp = await PairUp.findById(pairUpId);
-  if (!pairUp) return res.status(404).json({ message: "PairUp not found" });
-
-  if (
-    pairUp.status !== "accepted" ||
-    (pairUp.from.toString() !== userId && pairUp.to.toString() !== userId)
-  ) {
-    return res.status(403).json({ message: "Not authorized" });
-  }
-
-  const newMessage = await Message.create({
-    pairUp: pairUpId,
-    sender: userId,
-    text: text || "",
-  });
-
-  // Emit real-time event
-  const io = req.app.get("io");
-  io.to(pairUpId.toString()).emit("newMessage", newMessage);
-
-  res.json(newMessage);
 };
