@@ -6,9 +6,11 @@ const {
   uploadProfileImage,
   removeProfileImage,
   changePassword,
+  getUserById,
 } = require("../controllers/userController");
 const { protect } = require("../middleware/authMiddleware");
 const multer = require("multer");
+
 
 // Multer config
 const storage = multer.diskStorage({
@@ -24,5 +26,7 @@ router.put("/me", protect, updateProfile);
 router.post("/me/profile-image", protect, upload.single("profileImage"), uploadProfileImage);
 router.delete("/me/profile-image", protect, removeProfileImage);
 router.post("/me/change-password", protect, changePassword);
+router.get("/:id", getUserById);
+
 
 module.exports = router;
