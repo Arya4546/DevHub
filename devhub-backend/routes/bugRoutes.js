@@ -23,6 +23,6 @@ const upload = multer({ storage });
 router.post("/", protect, upload.single("file"), createBug);
 router.get("/", getBugs);
 router.post("/:id/comment", protect, addComment);
-router.get("/:id/ai", protect, aiSuggestion);
+router.post("/:id/ai", protect, aiSuggestion);
 
 module.exports = router;
