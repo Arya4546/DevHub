@@ -5,7 +5,7 @@ import { motion } from "framer-motion";
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 export default function BugCard({ bug }) {
-  const [suggestion, setSuggestion] = useState(bug.suggestion || "");
+  const [suggestion, setSuggestion] = useState(bug.aiSuggestion || ""); // ✅ show saved value if present
   const [loading, setLoading] = useState(false);
 
   const handleGetSuggestion = async () => {
@@ -13,14 +13,17 @@ export default function BugCard({ bug }) {
     const token = localStorage.getItem("devhub_token");
 
     try {
-      const res = await axios.get(
+      // ✅ MUST MATCH BACKEND: POST, not GET!
+      const res = await axios.post(
         `${API_BASE_URL}/api/bugs/${bug._id}/ai`,
+        {}, // empty POST body
         {
           headers: {
             Authorization: `Bearer ${token}`,
           },
         }
       );
+
       setSuggestion(res.data.suggestion);
     } catch (err) {
       console.error("AI Suggestion Error:", err.message);
